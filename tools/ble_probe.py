@@ -346,22 +346,127 @@ class BikeSession:
         log.info("Auth Schritt 2: warte auf 0x5B TboxRandomNum …")
         payload = await self.wait_for(CTRL_TBOX_RANDOM_NUM, 5.0)
         codec = next((v for f, w, v in parse_fields(payload) if f == 1 and w == 2), b"")
-        log.info("codec: %s", codec[:64].hex())
+        log.info(
+            "codec: %s (len=%d, AES-Key len=%d, iv-len=%d)",
+            codec[:64].hex(), len(codec),
+            len(key.encode()), len((self.ctx.get("iv") or "").encode()),
+        )
 
-        ciphertext = decode_codec(codec, self.args.codec_mode)
-        log.info("Auth Schritt 3: AES-ECB/PKCS7 entschlüsseln (%d Bytes Chiffretext)", len(ciphertext))
-        sn = aes_ecb_pkcs7_decrypt(ciphertext, key)
-        log.info("entschlüsseltes sn: %r", sn)
-        await self.write_frame(CTRL_RANDOM_NUM, proto_random_num(sn))
+        # Open question from open-cfmoto: codec/key encoding. Try the matrix.
+        import base64
+        from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+        from cryptography.hazmat.primitives.padding import PKCS7
 
-        log.info("Auth Schritt 4: warte auf 0x5D TboxAuthResult …")
-        result = await self.wait_for(CTRL_TBOX_AUTH_RESULT, 5.0)
-        fields = parse_fields(result)
-        code = next((v for f, w, v in fields if f == 1 and w == 0), None)
-        if code != 0:
-            raise RuntimeError(f"Auth fehlgeschlagen: result={code} — bike hat abgelehnt")
-        self.authenticated = True
-        log.info("AUTH OK ✅ (result=0)")
+        def hex_bytes(s: str) -> bytes | None:
+            try:
+                if all(c in "0123456789abcdefABCDEF" for c in s) and len(s) % 2 == 0:
+                    return bytes.fromhex(s)
+            except Exception:  # noqa: BLE001
+                pass
+            return None
+
+        key_candidates: dict[str, bytes | None] = {
+            "key-utf8": key.encode(),
+            "key-hex": hex_bytes(key),
+            "iv-utf8": (self.ctx.get("iv") or "").encode() or None,
+            "iv-hex": hex_bytes(self.ctx.get("iv") or ""),
+        }
+        text = codec.decode("utf-8", errors="replace")
+        codec_candidates: dict[str, bytes] = {
+            "hex": hex_bytes(text),
+            "raw": codec,
+        }
+        try:
+            codec_candidates["b64"] = base64.b64decode(text)
+        except Exception:  # noqa: BLE001
+            pass
+
+        def try_aes(kb: bytes, ct: bytes, op: str, ivb: bytes | None = None) -> bytes | None:
+            try:
+                mode = modes.CBC(ivb) if ivb is not None else modes.ECB()
+                if op == "encrypt":
+                    padder = PKCS7(128).padder()
+                    data = padder.update(ct) + padder.finalize()
+                    enc = Cipher(algorithms.AES(kb), mode).encryptor()
+                    return enc.update(data) + enc.finalize()
+                decryptor = Cipher(algorithms.AES(kb), mode).decryptor()
+                padded = decryptor.update(ct) + decryptor.finalize()
+                if op == "nopad":
+                    return padded
+                unpadder = PKCS7(128).unpadder()
+                return unpadder.update(padded) + unpadder.finalize()
+            except Exception:  # noqa: BLE001
+                return None
+
+        iv_utf8 = (self.ctx.get("iv") or "").encode() or None
+        iv_hex = hex_bytes(self.ctx.get("iv") or "")
+        import hashlib
+
+        key_list: dict[str, bytes] = {
+            "key-utf8": key.encode(),
+            "key-md5": hashlib.md5(key.encode()).digest(),
+            "key-sha256-16": hashlib.sha256(key.encode()).digest()[:16],
+            "key-sha256-32": hashlib.sha256(key.encode()).digest(),
+        }
+        kh = hex_bytes(key)
+        if kh:
+            key_list["key-hex"] = kh
+
+        def add(out: bytes | str | None, label: str, seen: list[str]) -> None:
+            if out is None:
+                return
+            if isinstance(out, str):
+                variants = [out]
+            else:
+                variants = []
+                if all(32 <= b < 127 for b in out):
+                    variants.append(out.decode("ascii"))
+                variants.append(out.hex())
+            for v in variants:
+                if v not in seen:
+                    seen.append(v)
+                    log.info("Kandidat %02d (%s): %s", len(seen), label, v[:40])
+
+        seen: list[str] = []
+        add(codec.decode("ascii", "replace"), "echo-codec", seen)
+        for kname, kb in key_list.items():
+            if len(kb) not in (16, 24, 32):
+                continue
+            for cname, ct in (("hex", hex_bytes(text)), ("raw", codec)):
+                if ct is None or len(ct) % 16:
+                    continue
+                add(try_aes(kb, ct, "decrypt"), f"{kname}×{cname} decrypt", seen)
+                add(try_aes(kb, ct, "nopad"), f"{kname}×{cname} nopad", seen)
+                add(try_aes(kb, ct, "encrypt"), f"{kname}×{cname} encrypt", seen)
+                for mname, ivb in (("cbc-iv", iv_utf8), ("cbc-iv-hex", iv_hex)):
+                    if ivb is None or len(ivb) != 16:
+                        continue
+                    add(try_aes(kb, ct, "decrypt", ivb), f"{kname}×{cname} {mname} decrypt", seen)
+                    add(try_aes(kb, ct, "encrypt", ivb), f"{kname}×{cname} {mname} encrypt", seen)
+
+        # send candidates one by one; watch for 0x5D result=0
+        for idx, sn in enumerate(seen, start=1):
+            log.info("sende Kandidat %02d/%02d", idx, len(seen))
+            try:
+                await self.write_frame(CTRL_RANDOM_NUM, proto_random_num(sn))
+                try:
+                    result = await asyncio.wait_for(
+                        self.wait_for(CTRL_TBOX_AUTH_RESULT, 1.2), timeout=1.2
+                    )
+                except TimeoutError:
+                    log.info("Kandidat %02d: keine Antwort", idx)
+                    continue
+                fields = parse_fields(result)
+                code = next((v for f, w, v in fields if f == 1 and w == 0), None)
+                if code == 0:
+                    self.authenticated = True
+                    log.info("AUTH OK ✅ mit Kandidat %02d: sn=%s", idx, sn[:40])
+                    return
+                log.info("Kandidat %02d abgelehnt (result=%s)", idx, code)
+            except Exception as exc:  # noqa: BLE001 — connection dropped
+                log.info("Kandidat %02d: Verbindung unterbrochen (%s)", idx, exc)
+                raise RuntimeError(f"Auth abgebrochen bei Kandidat {idx}: {exc}") from exc
+        raise RuntimeError("alle sn-Kandidaten abgelehnt / ohne Antwort")
 
     async def heartbeat_loop(self) -> None:
         log.info("Heartbeat alle 2 s (0x67 ping=1) — ACK-Code wird protokolliert")
@@ -374,24 +479,57 @@ class BikeSession:
                 return
 
     async def run(self) -> None:
-        await self.client.start_notify(CHAR_NOTIFY, self.on_notify)
-        await asyncio.sleep(0.05)  # confirmed 50 ms in BleModel.java
-
-        request_mtu = getattr(self.client, "request_mtu", None)
-        if callable(request_mtu):
+        # macOS CoreBluetooth drops flaky connections; retry the whole
+        # connect+auth sequence a few times before giving up.
+        last_error: Exception | None = None
+        for attempt in range(1, 4):
             try:
-                negotiated = await request_mtu(185)
-                log.info("MTU: %s ausgehandelt", negotiated)
+                if not self.client.is_connected:
+                    log.info("BLE connect (Versuch %d/3) …", attempt)
+                    await self.client.connect()
+                await self.client.start_notify(CHAR_NOTIFY, self.on_notify)
+                await asyncio.sleep(0.05)  # confirmed 50 ms in BleModel.java
+
+                request_mtu = getattr(self.client, "request_mtu", None)
+                if callable(request_mtu):
+                    try:
+                        negotiated = await request_mtu(185)
+                        log.info("MTU: %s ausgehandelt", negotiated)
+                    except Exception as exc:  # noqa: BLE001
+                        log.info("MTU-Negotiation fehlgeschlagen (%s) — weiter wie die App", exc)
+                else:
+                    log.info("bleak-Version ohne request_mtu — weiter ohne (kleine Frames gehen auch)")
+
+                await asyncio.sleep(2.0)  # confirmed 2000 ms in BleModel.java
+
+                if self.args.no_auth:
+                    return
+                await self.authenticate()
+                self.heartbeat_task = asyncio.create_task(self.heartbeat_loop())
+                return
+            except RuntimeError as exc:
+                if attempt == 3 or "abgebrochen" not in str(exc):
+                    raise
+                last_error = exc
+                log.info("Versuch %d/3 fehlgeschlagen (%s) — neu verbinden", attempt, exc)
+                try:
+                    await self.client.disconnect()
+                except Exception:  # noqa: BLE001
+                    pass
+                self._notify_queue = asyncio.Queue()
+                await asyncio.sleep(1.0)
             except Exception as exc:  # noqa: BLE001
-                log.info("MTU-Negotiation fehlgeschlagen (%s) — weiter wie die App", exc)
-        else:
-            log.info("bleak-Version ohne request_mtu — weiter ohne (kleine Frames gehen auch)")
-
-        await asyncio.sleep(2.0)  # confirmed 2000 ms in BleModel.java
-
-        if not self.args.no_auth:
-            await self.authenticate()
-            self.heartbeat_task = asyncio.create_task(self.heartbeat_loop())
+                last_error = exc
+                log.info("Versuch %d/3: %s — neu verbinden", attempt, exc)
+                if attempt == 3:
+                    raise
+                try:
+                    await self.client.disconnect()
+                except Exception:  # noqa: BLE001
+                    pass
+                await asyncio.sleep(1.0)
+        if last_error:
+            raise last_error
 
 
 async def discover(args, ctx) -> BleakClient | None:
@@ -406,7 +544,7 @@ async def discover(args, ctx) -> BleakClient | None:
         return None
     candidates = []
     for d in devices:
-        candidates.append((d.rssi or -999, d.address, d.name or "?"))
+        candidates.append((getattr(d, "rssi", None) or -999, d.address, d.name or "?"))
     for rssi, addr, name in sorted(candidates, reverse=True):
         mark = " ◀ MAC-Match" if wanted_mac and addr.replace(":", "").upper() == wanted_mac.replace(":", "").upper() else ""
         log.info("  RSSI %4d dBm  %s  %s%s", rssi, addr, name, mark)

@@ -335,9 +335,23 @@ class CfMotoBle:
                 found = await asyncio.wait_for(
                     scanner.discover(timeout=10.0, return_adv=True), timeout=20.0
                 )
-                # bleak 3.x: discover(return_adv=True) -> dict[BLEDevice, AdvertisementData]
-                devices = [device for device in found] if isinstance(found, dict) else list(found)
-                adv_map = found if isinstance(found, dict) else {}
+                # bleak 3.x: dict keyed by address string {addr: (device, adv)};
+                # older bleak: dict keyed by BLEDevice {device: adv}.
+                pairs: list[tuple[Any, Any]] = []
+                if isinstance(found, dict):
+                    for key, value in found.items():
+                        if isinstance(key, str):
+                            device, adv = (
+                                value if isinstance(value, tuple) and len(value) == 2
+                                else (value, None)
+                            )
+                            pairs.append((device, adv))
+                        else:
+                            pairs.append((key, value))
+                else:
+                    pairs = [(device, None) for device in found]
+                devices = [device for device, _adv in pairs]
+                adv_map = {device: adv for device, adv in pairs if adv is not None}
             except Exception as exc:  # noqa: BLE001
                 self.log.debug("aktiver Scan fehlgeschlagen: %s", exc)
                 devices = []
