@@ -332,18 +332,25 @@ class CfMotoBle:
             self.log.info("T-Box unbekannt — aktiver BLE-Scan (10 s) über den HA-Adapter")
             scanner = async_get_scanner(self.hass)
             try:
-                devices = await asyncio.wait_for(
-                    scanner.discover(timeout=10.0, return_adv=False), timeout=20.0
+                found = await asyncio.wait_for(
+                    scanner.discover(timeout=10.0, return_adv=True), timeout=20.0
                 )
+                # bleak 3.x: discover(return_adv=True) -> dict[BLEDevice, AdvertisementData]
+                devices = [device for device in found] if isinstance(found, dict) else list(found)
+                adv_map = found if isinstance(found, dict) else {}
             except Exception as exc:  # noqa: BLE001
                 self.log.debug("aktiver Scan fehlgeschlagen: %s", exc)
                 devices = []
+                adv_map = {}
             for device in devices:
-                self.log.debug(
-                    "Scan-Gerät: %s (%s) rssi=%s",
+                adv = adv_map.get(device)
+                uuids = ",".join(getattr(adv, "service_uuids", []) or []) if adv else ""
+                self.log.info(
+                    "Scan-Gerät: %s (%s) uuids=%s rssi=%s",
                     getattr(device, "name", "?"),
                     device.address,
-                    getattr(device, "rssi", None),
+                    uuids or "-",
+                    getattr(adv, "rssi", None) if adv else None,
                 )
                 if device.address.upper() == self.mac.upper():
                     ble_device = device

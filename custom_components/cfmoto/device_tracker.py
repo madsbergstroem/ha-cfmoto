@@ -45,6 +45,11 @@ class CfMotoDeviceTracker(CfMotoEntity, TrackerEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         attrs: dict[str, Any] = {}
+        mac = self.detail.get("btMac")
+        if mac:
+            attrs["bt_mac"] = mac
+        enc = self.detail.get("encryptInfo") or {}
+        attrs["ble_keys_present"] = bool(enc.get("encryptValue") and enc.get("key"))
         altitude = self._geo.get("altitude")
         if altitude is not None:
             attrs["altitude"] = altitude
