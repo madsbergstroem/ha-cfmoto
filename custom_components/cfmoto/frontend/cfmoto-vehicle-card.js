@@ -20,6 +20,17 @@ const SUFFIX = {
   last_update: '_last_update',
 };
 
+/** Button entities published by the BLE control platform, resolved by suffix. */
+const CONTROL_KEYS = Object.freeze(['power_on', 'power_off', 'unlock', 'lock', 'horn']);
+
+/** Controls shown in the bottom row: key, icon, label key. */
+const CONTROLS = Object.freeze([
+  ['power', 'power', 'power'],
+  ['unlock', 'lock-open-variant-outline', 'unlock'],
+  ['lock', 'lock-outline', 'lock'],
+  ['horn', 'bullhorn-outline', 'horn'],
+]);
+
 const LABELS = {
   de: {
     eyebrow: 'CFMoto',
@@ -51,6 +62,13 @@ const LABELS = {
     tab_overview: 'Übersicht',
     tab_map: 'Karte',
     tab_details: 'Details',
+    power: 'Zündung',
+    unlock: 'Aufschließen',
+    lock: 'Zusperren',
+    horn: 'Hupe',
+    confirm_power: 'Zündung schalten?',
+    confirm_unlock: 'Fahrzeug aufschließen?',
+    action_error: 'Aktion fehlgeschlagen.',
     map_placeholder: 'Kartenkarte ist noch nicht geladen.',
     now: 'gerade eben',
     minutes: 'vor {n} Min',
@@ -98,6 +116,13 @@ const LABELS = {
     tab_overview: 'Overview',
     tab_map: 'Map',
     tab_details: 'Details',
+    power: 'Power',
+    unlock: 'Unlock',
+    lock: 'Lock',
+    horn: 'Horn',
+    confirm_power: 'Switch the ignition?',
+    confirm_unlock: 'Unlock the bike?',
+    action_error: 'Action failed.',
     map_placeholder: 'Map card is not loaded yet.',
     now: 'just now',
     minutes: '{n} min ago',
@@ -187,6 +212,7 @@ export function resolveEntities(hass, entityId) {
   const result = {};
   for (const [key, suffix] of Object.entries(SUFFIX)) result[key] = pick(ids, suffix);
   result.location = ids.find((id) => id.startsWith('device_tracker.'));
+  for (const key of CONTROL_KEYS) result[key] = pick(ids.filter((id) => id.startsWith('button.')), `_${key}`);
   return result;
 }
 
@@ -227,7 +253,7 @@ ha-card{position:relative;isolation:isolate;display:block;overflow:hidden;border
 .backdrop{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
 .backdrop img{width:100%;height:100%;object-fit:cover;object-position:50% 45%;opacity:.32;filter:blur(7px) saturate(1.15);transform:scale(1.15)}
 .backdrop::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,color-mix(in srgb,var(--card-background-color) 35%,transparent) 0%,color-mix(in srgb,var(--card-background-color) 88%,transparent) 62%,var(--card-background-color) 100%)}
-.header,.tabs,.panel,.error{position:relative;z-index:1}
+.header,.tabs,.panel,.controls,.error{position:relative;z-index:1}
 button{font:inherit}.header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 16px 0}
 .eyebrow{margin:0 0 2px;color:var(--secondary-text-color);font-size:9px;font-weight:700;letter-spacing:.18em;text-transform:uppercase}
 h2{margin:0;font-size:18px;font-weight:650;letter-spacing:-.025em;line-height:1.2;overflow-wrap:anywhere}
@@ -265,11 +291,16 @@ h2{margin:0;font-size:18px;font-weight:650;letter-spacing:-.025em;line-height:1.
 .row:last-child{border-bottom:0}.row ha-icon{flex:none;--mdc-icon-size:15px;color:var(--secondary-text-color)}
 .row-label{flex:1 1 auto;min-width:0;overflow:hidden;color:var(--secondary-text-color);text-overflow:ellipsis;white-space:nowrap}
 .row-value{flex:none;font-weight:650;letter-spacing:-.01em;white-space:nowrap}.row:disabled{cursor:default;opacity:.5}
+.controls{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-top:1px solid var(--divider-color)}
+.control{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:0;min-height:52px;padding:6px 4px;border:0;border-right:1px solid var(--divider-color);background:transparent;color:var(--primary-text-color);font-size:10px;cursor:pointer}
+.control:last-child{border-right:0}.control ha-icon{--mdc-icon-size:18px;color:var(--primary-color)}
+.control span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.control:disabled{cursor:default;opacity:.42}.control.busy{opacity:.6}
 .error{margin:0;padding:9px 16px;background:color-mix(in srgb,var(--error-color) 9%,transparent);color:var(--error-color);font-size:11.5px;line-height:1.4}
 button:focus-visible{outline:2px solid var(--primary-color);outline-offset:-3px}
-@media(prefers-reduced-motion:no-preference){.metric,.tab,.row{transition:background .16s ease}.metric:hover,.row:hover{background:color-mix(in srgb,var(--primary-color) 8%,transparent)}}
+@media(prefers-reduced-motion:no-preference){.metric,.tab,.row,.control{transition:background .16s ease}.metric:hover,.row:hover,.control:hover{background:color-mix(in srgb,var(--primary-color) 8%,transparent)}}
 @container(max-width:430px){.hero{grid-template-columns:100px minmax(0,1fr);padding-inline:12px}.readout .value{font-size:26px}.metrics{grid-template-columns:repeat(2,minmax(0,1fr));padding-inline:12px}.header{padding-inline:12px}.presence{margin-inline:12px}.vehicle{height:178px}.vehicle img{height:176px}}
-@container(max-width:310px){.hero{grid-template-columns:1fr}.vehicle{order:-1;height:160px}.vehicle img{height:158px}.readout{padding-bottom:6px}.status{padding:4px 8px}}
+@container(max-width:310px){.hero{grid-template-columns:1fr}.vehicle{order:-1;height:160px}.vehicle img{height:158px}.readout{padding-bottom:6px}.status{padding:4px 8px}.controls{grid-template-columns:repeat(2,minmax(0,1fr))}.control:nth-child(2){border-right:0}.control:nth-child(-n+2){border-bottom:1px solid var(--divider-color)}}
 `;
 
 export class CfMotoVehicleCard extends (globalThis.HTMLElement ?? class {}) {
@@ -277,6 +308,8 @@ export class CfMotoVehicleCard extends (globalThis.HTMLElement ?? class {}) {
     super();
     this.attachShadow({ mode: 'open' });
     this.activeTab = 'overview';
+    this.busy = false;
+    this.actionError = false;
   }
 
   setConfig(config) {
@@ -373,6 +406,45 @@ export class CfMotoVehicleCard extends (globalThis.HTMLElement ?? class {}) {
   navigate(path) {
     globalThis.history?.pushState?.(null, '', path);
     globalThis.dispatchEvent?.(new CustomEvent('location-changed', { bubbles: true, composed: true, detail: { replace: false } }));
+  }
+
+  /** Control keys whose button entity exists on the device. */
+  controlKeys() {
+    return CONTROLS.map(([key]) => key).filter((key) => this.controlEntity(key));
+  }
+
+  /** Entity behind a control key; the power control swaps between the two buttons. */
+  controlEntity(key) {
+    if (key === 'power') return this.state('ignition')?.state === 'on' ? this.ids?.power_off : this.ids?.power_on;
+    return this.ids?.[key];
+  }
+
+  controlAvailable(key) {
+    const entityId = this.controlEntity(key);
+    return Boolean(entityId && this._hass?.states?.[entityId]);
+  }
+
+  async runAction(key) {
+    if (this.busy || !this.controlAvailable(key)) return;
+    const labels = this.labels();
+    const entityId = this.controlEntity(key);
+    if (key === 'power' && globalThis.confirm && !globalThis.confirm(labels.confirm_power)) return;
+    if (key === 'unlock' && globalThis.confirm && !globalThis.confirm(labels.confirm_unlock)) return;
+    this.busy = true;
+    this.actionError = false;
+    this.refresh();
+    try {
+      await this._hass.callService('button', 'press', { entity_id: entityId });
+    } catch {
+      this.actionError = true;
+    } finally {
+      this.busy = false;
+      this.refresh();
+    }
+  }
+
+  refresh() {
+    if (this.ui) this.update(); else this.render();
   }
 
   title() {
@@ -512,6 +584,25 @@ export class CfMotoVehicleCard extends (globalThis.HTMLElement ?? class {}) {
     return list;
   }
 
+  buildControls() {
+    const labels = this.labels();
+    const row = element('div', '', 'controls');
+    this.ui.controls = {};
+    const available = this.controlKeys();
+    for (const [key, iconName, labelKey] of CONTROLS) {
+      if (!available.includes(key)) continue;
+      const button = element('button', '', 'control');
+      button.type = 'button';
+      const label = element('span', labels[labelKey]);
+      const mark = icon(iconName);
+      button.append(mark, label);
+      button.addEventListener('click', () => void this.runAction(key));
+      row.append(button);
+      this.ui.controls[key] = { button, label, mark };
+    }
+    return row;
+  }
+
   render() {
     if (!this.config || !this._hass || !this.shadowRoot) return;
     const labels = this.labels();
@@ -588,6 +679,15 @@ export class CfMotoVehicleCard extends (globalThis.HTMLElement ?? class {}) {
     this.ui.panels = panels;
     this.ui.tabIds = tabs.map((tab) => tab.id).join();
 
+    if (this.controlKeys().length > 0) {
+      card.append(this.buildControls());
+      const error = element('p', labels.action_error, 'error');
+      error.setAttribute('role', 'alert');
+      error.hidden = true;
+      card.append(error);
+      this.ui.error = error;
+    }
+
     this.shadowRoot.replaceChildren(element('style', CSS), card);
     this.syncTabs();
     this.update();
@@ -616,6 +716,8 @@ export class CfMotoVehicleCard extends (globalThis.HTMLElement ?? class {}) {
     this.updateMetrics();
     this.updatePresence();
     this.updateDetails();
+    this.updateControls();
+    if (this.ui.error) this.ui.error.hidden = !this.actionError;
     if (this.ui.map) this.ui.map.hass = this._hass;
   }
 
@@ -677,6 +779,21 @@ export class CfMotoVehicleCard extends (globalThis.HTMLElement ?? class {}) {
     for (const [key, entry] of Object.entries(this.ui.details ?? {})) {
       entry.value.textContent = this.detailValue(key, entry.kind);
       entry.row.disabled = !usable(this.state(key));
+    }
+  }
+
+  updateControls() {
+    const ui = this.ui.controls;
+    if (!ui) return;
+    const labels = this.labels();
+    const powerOn = this.state('ignition')?.state === 'on';
+    for (const [key, entry] of Object.entries(ui)) {
+      if (key === 'power') {
+        entry.label.textContent = powerOn ? labels.ignition_off : labels.ignition_on;
+        entry.mark?.setAttribute('icon', `mdi:${powerOn ? 'power-off' : 'power'}`);
+      }
+      entry.button.disabled = this.busy || !this.controlAvailable(key);
+      entry.button.classList.toggle('busy', this.busy);
     }
   }
 }

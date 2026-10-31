@@ -91,7 +91,10 @@ image_navigate: /lovelace/450mt-details  # optional
 
 The card finds the other entities through the device registry, so renaming the
 device or its entities keeps working. It offers a visual editor (entity, title,
-image, click target and the switches below).
+image, click target and the switches below). When the BLE control platform
+provides `button.*_power_on/_power_off/_unlock/_lock/_horn`, the card adds a
+control row (ignition, unlock, lock, horn); without those buttons the row is
+omitted.
 
 | Option | Default | Effect |
 |---|---|---|

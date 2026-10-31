@@ -113,6 +113,14 @@ const STATES = {
   'device_tracker.450mt': { state: 'home', attributes: {} },
 };
 
+const BUTTON_STATES = {
+  'button.450mt_power_on': { state: 'unknown', attributes: {} },
+  'button.450mt_power_off': { state: 'unknown', attributes: {} },
+  'button.450mt_unlock': { state: 'unknown', attributes: {} },
+  'button.450mt_lock': { state: 'unknown', attributes: {} },
+  'button.450mt_horn': { state: 'unknown', attributes: {} },
+};
+
 function makeHass(states = STATES, language = 'de') {
   const entities = Object.fromEntries(Object.keys(states).map((id) => [id, { device_id: DEVICE }]));
   return { states, entities, language };
@@ -235,8 +243,7 @@ test('missing entity renders the no-entity hint', () => {
   assert.equal(card.shadowRoot.find(byClass('error')).textContent, 'Keine CFMoto-Entität gefunden');
 });
 
-test('image click navigates to the configured path', () => {
-  const card = mount({ image_navigate: '/lovelace/450mt-details' });
+test('image click navigates to the configured path', () => {  const card = mount({ image_navigate: '/lovelace/450mt-details' });
   const events = [];
   globalThis.history = { pushState: (_state, _title, path) => events.push(['push', path]) };
   globalThis.dispatchEvent = (event) => events.push(['event', event.detail?.replace]);
@@ -244,4 +251,51 @@ test('image click navigates to the configured path', () => {
   assert.deepEqual(events, [['push', '/lovelace/450mt-details'], ['event', false]]);
   delete globalThis.history;
   delete globalThis.dispatchEvent;
+});
+
+test('controls stay hidden while the BLE buttons are missing', () => {
+  const card = mount();
+  assert.equal(card.shadowRoot.find(byClass('controls')), undefined);
+});
+
+test('controls render with the BLE buttons and flip the power action', () => {
+  const card = new CfMotoVehicleCard();
+  card.setConfig({ type: 'custom:cfmoto-vehicle-card', entity: 'sensor.450mt_odometer' });
+  card.hass = makeHass({ ...STATES, ...BUTTON_STATES });
+  const controls = card.shadowRoot.querySelectorAll(byClass('control'));
+  assert.equal(controls.length, 4);
+  assert.deepEqual(controls.map((node) => node.textContent), ['Zündung an', 'Aufschließen', 'Zusperren', 'Hupe']);
+
+  card.hass = makeHass({ ...STATES, ...BUTTON_STATES, 'binary_sensor.450mt_ignition': { state: 'on', attributes: {} } });
+  assert.equal(card.shadowRoot.querySelectorAll(byClass('control'))[0].textContent, 'Zündung aus');
+});
+
+test('pressing a control calls button.press on the resolved entity', async () => {
+  const card = new CfMotoVehicleCard();
+  card.setConfig({ type: 'custom:cfmoto-vehicle-card', entity: 'sensor.450mt_odometer' });
+  const calls = [];
+  const hass = makeHass({ ...STATES, ...BUTTON_STATES, 'binary_sensor.450mt_ignition': { state: 'on', attributes: {} } });
+  hass.callService = async (domain, service, data) => calls.push([domain, service, data]);
+  card.hass = hass;
+
+  card.shadowRoot.querySelectorAll(byClass('control'))[3].click();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(calls, [['button', 'press', { entity_id: 'button.450mt_horn' }]]);
+
+  card.shadowRoot.querySelectorAll(byClass('control'))[0].click();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(calls[1], ['button', 'press', { entity_id: 'button.450mt_power_off' }]);
+});
+
+test('a failed action shows the error line', async () => {
+  const card = new CfMotoVehicleCard();
+  card.setConfig({ type: 'custom:cfmoto-vehicle-card', entity: 'sensor.450mt_odometer' });
+  const hass = makeHass({ ...STATES, ...BUTTON_STATES });
+  hass.callService = async () => { throw new Error('ble offline'); };
+  card.hass = hass;
+
+  assert.equal(card.shadowRoot.find(byClass('error')).hidden, true);
+  card.shadowRoot.querySelectorAll(byClass('control'))[3].click();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(card.shadowRoot.find(byClass('error')).hidden, false);
 });
