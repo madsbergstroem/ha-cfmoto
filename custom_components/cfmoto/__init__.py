@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
@@ -26,6 +27,7 @@ PLATFORMS: list[Platform] = [
     Platform.SENSOR,
     Platform.BINARY_SENSOR,
     Platform.DEVICE_TRACKER,
+    Platform.BUTTON,
 ]
 
 
@@ -39,6 +41,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     session = async_get_clientsession(hass)
     client = CfMotoClient(session, email, password, area)
     coordinator = CfMotoCoordinator(hass, client, poll_interval)
+    coordinator.ble_lock = asyncio.Lock()  # serializes BLE command sessions
 
     await coordinator.async_config_entry_first_refresh()
 

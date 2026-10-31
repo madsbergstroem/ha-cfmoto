@@ -27,6 +27,7 @@ CONF_EMAIL = "email"
 CONF_PASSWORD = "password"
 CONF_AREA = "area"
 CONF_POLL_INTERVAL = "poll_interval"
+CONF_ENABLE_BLE = "enable_ble"
 
 DEFAULT_AREA = "DE"
 DEFAULT_POLL_INTERVAL = 60  # seconds

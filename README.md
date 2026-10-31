@@ -78,7 +78,7 @@ The integration ships its own Lovelace card (no HACS plugin needed) at
 `/cfmoto-static/cfmoto-vehicle-card.js`, served from `custom_components/cfmoto/frontend/`:
 
 1. **Settings → Dashboards → ⋮ → Resources → Add resource**
-2. URL `/cfmoto-static/cfmoto-vehicle-card.js?v=0.2.0`, type **JavaScript module**
+2. URL `/cfmoto-static/cfmoto-vehicle-card.js?v=0.3.0`, type **JavaScript module**
 3. Add the card:
 
 ```yaml
@@ -90,11 +90,23 @@ image_navigate: /lovelace/450mt-details  # optional
 ```
 
 The card finds the other entities through the device registry, so renaming the
-device or its entities keeps working. Options: `show_metrics`, `show_presence`
-(both default `true`).
+device or its entities keeps working. It offers a visual editor (entity, title,
+image, click target and the switches below).
+
+| Option | Default | Effect |
+|---|---|---|
+| `tabs` | `true` | Overview/Map/Details tab bar; `false` renders the overview only |
+| `map` | `true` | Map tab with the vehicle tracker (`hui-map-card`) |
+| `details` | `true` | Details tab: fuel display, riding time, signal, ignition, T-Box, last data |
+| `show_background` | `true` | Blurred vehicle image as ambient backdrop |
+| `show_metrics` | `true` | Odometer, month mileage, battery voltage, average speed |
+| `show_presence` | `true` | Location, T-Box state and age of the last data |
+| `image` | bundled PNG | Vehicle image, also used for the backdrop |
+| `image_navigate` | – | Path opened by clicking the image (default: more-info) |
 
 Bump the `?v=` query whenever the card file changes — `/cfmoto-static/` is
-cached by the browser.
+cached by the browser. Card tests: `node --test tests/test_card.mjs tests/test_card_render.mjs`
+(they run against a DOM shim, no browser needed).
 
 ## Keyless / ignition research (separate track)
 
@@ -133,12 +145,41 @@ Known unknowns, stated honestly:
   protocol, which is phone-to-bike and still unverified. This is tracked
   separately, not in this integration.
 
+## BLE control (experimental, needs live validation)
+
+Home Assistant runs the BLE protocol directly against the T-Box (phone-to-bike
+channel, ~10 m range) using the `bluetooth` integration — the same radio HA
+already uses for other BLE devices. For each vehicle the integration creates
+buttons:
+
+| Button | BLE command |
+|--------|-------------|
+| `button.<device>_power_on` / `_power_off` | `Lock{type=POWER_ON_OFF,state=POWER_ON/OFF}` |
+| `button.<device>_unlock` / `_lock` | `Lock{type=MOTORCYCLE,state=UNLOCKED/LOCKED}` |
+| `button.<device>_horn` / `_flash_lights` | `FindCar` loudspeaker / double-flash |
+| `button.<device>_ble_test` | connect + auth only, no command |
+
+Every press opens a fresh session: connect → 4-step auth (0x5A–0x5D, AES
+challenge-response with the cloud-supplied `encryptInfo` keys) → command →
+ACK → disconnect. The result (or error) lands in the button's attributes and
+the HA log. Disable via option `enable_ble: false` in the config entry.
+
+⚠️ The protocol is reconstructed from APK static analysis and **has never
+been validated against a real bike** (open-cfmoto HW-01…04). `power_on`
+switches real hardware — use `ble_test` first when the bike is in BLE range.
+Whether `power_on` only powers the electronics (likely) or enables starting
+is an open question; the engine is additionally protected by a mechanical
+steering lock and an immobilizer transponder in the physical key.
+
 ## Development
 
 - `probe.py` — standalone stdlib probe (login → vehicle list → telemetry), used
   to validate the API against a real VIN. No dependencies.
-- `tests/test_signing.py` — pins the signing algorithm against vectors produced
-  by the reference JS client. Run with `python3 -m unittest discover -s tests`.
+- `tools/ble_probe.py` — standalone interactive BLE client for live protocol
+  debugging next to the bike (same wire format as `custom_components/cfmoto/ble.py`).
+- `tests/` — `test_signing.py` pins the cloud signing; `test_ble_frames.py` and
+  `test_ble.py` pin the frame/proto/AES codec and the auth state machine.
+  Run with `python3 -m unittest discover -s tests` (venv with `cryptography`).
 
 ```bash
 CFMOTO_EMAIL='you@example.com' CFMOTO_PASSWORD='secret' python3 probe.py --json
