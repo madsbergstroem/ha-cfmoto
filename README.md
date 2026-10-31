@@ -96,6 +96,36 @@ device or its entities keeps working. Options: `show_metrics`, `show_presence`
 Bump the `?v=` query whenever the card file changes — `/cfmoto-static/` is
 cached by the browser.
 
+## Keyless / ignition research (separate track)
+
+The cloud API cannot switch the ignition on — it only *reads* KL15 state. Ignition
+control exists solely in the phone-to-bike BLE protocol (control `0x67`
+`Lock{type=POWER_ON_OFF,state=POWER_ON}`, and `0x79` KL15 whose value range is
+still unknown). Reconstructed by [open-cfmoto](https://github.com/Asiern/open-cfmoto)
+from APK static analysis, but **never tested against a real bike** (their
+hardware-validation issues HW-01…04 are all open).
+
+`tools/ble_probe.py` closes that gap. It logs into the cloud, takes the
+per-session BLE keys (`encryptInfo`) and the bike MAC, connects, runs the
+4-step auth (0x5A→0x5B→0x5C→0x5D), keeps the heartbeat alive and offers
+interactive commands (`lock`, `unlock`, `power-on`, `power-off`, `kl15 <n>`,
+`horn`, `flash`, `light`). Every incoming frame is logged — that answers the
+open questions (heartbeat ACK code, command ACKs, KL15 behaviour) in one
+session next to the bike.
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install bleak cryptography
+cd tools && CFMOTO_EMAIL=… CFMOTO_PASSWORD=… ../.venv/bin/python ble_probe.py
+```
+
+Known unknowns, stated honestly:
+
+- Whether auth really succeeds with cloud `encryptInfo` (static analysis says yes).
+- Whether `power-on` only switches the electronics (likely) or also enables
+  starting — the engine is additionally protected by a **mechanical steering
+  lock and an immobilizer transponder in the physical key**. True keyless
+  riding is a physical modification decision, not a software one.
+
 ## Not supported (by design)
 
 - **Remote ignition / keyless start** — the cloud API has no ignition command
