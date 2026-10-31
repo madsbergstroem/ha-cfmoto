@@ -1,0 +1,23 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "CFMoto",
+        "description": "Connect to the CFMoto Ride cloud using the account your bike is linked to.",
+        "data": {
+          "email": "Email",
+          "password": "Password",
+          "area": "Country/Region"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Login failed — check credentials and the selected country/region.",
+      "cannot_connect": "Could not reach the CFMoto cloud.",
+      "no_vehicles": "No vehicles linked to this account."
+    },
+    "abort": {
+      "reauth_successful": "Credentials updated successfully."
+    }
+  }
+}

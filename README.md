@@ -6,10 +6,8 @@ built on the reverse-engineered CFMoto Ride cloud API.
 Target vehicle: **CFMoto 450MT** (gas, T-Box). Other T-Box models (700MT, 800MT,
 etc.) share the same cloud stack and should work too.
 
-> Status: **probe / validation phase**. The cloud API is cracked and documented
-> by [Asiern/open-cfmoto](https://github.com/Asiern/open-cfmoto); this repo turns
-> that into a Home Assistant integration. First step is validating the login and
-> telemetry endpoints against a real VIN.
+> Status: **working, validated against a real 450MT VIN.** Login, vehicle list and
+> telemetry (fuel, odometer, battery voltage, GPS, lock states) all return live data.
 
 ## How it works
 
@@ -38,22 +36,56 @@ CFMoto allows **one active session per account**. If Home Assistant logs in, the
 CFMoto Ride phone app gets logged out. Fix: in the app share the bike to a
 **second CFMoto account** and use that account only for Home Assistant.
 
-## Step 1 — validate with the probe
+## Install
+
+### HACS
+
+Add this repository as a custom repository (category *Integration*), then install **CFMoto**.
+
+### Manual
 
 ```bash
-CFMOTO_EMAIL='you@example.com' CFMOTO_PASSWORD='secret' python3 probe.py
-# add --json to dump the raw cloud payloads
+# clone into your config's custom_components directory
+git clone https://github.com/madsbergstroem/ha-cfmoto.git \
+  /config/custom_components/cfmoto
 ```
 
-It prints the vehicle list and the telemetry fields (speed, fuel, GPS, lock
-states, online state, BLE key presence). If this returns your bike's live data,
-the integration can be built on top.
+Then restart Home Assistant and add the integration from **Settings → Devices &
+Services → Add Integration → CFMoto**.
 
-Environment variables: `CFMOTO_EMAIL`, `CFMOTO_PASSWORD`, `CFMOTO_AREA` (default `DE`).
+## Configuration
 
-## Next steps
+| Field | Meaning |
+|-------|---------|
+| Email | CFMoto Ride account (the one the bike is linked to) |
+| Password | CFMoto Ride password (only its MD5 is ever sent) |
+| Country/Region | Account region, e.g. `DE` (default) |
 
-1. Probe against a real VIN → confirm which fields are populated for the 450MT.
-2. Build `custom_components/cfmoto` (config flow + DataUpdateCoordinator + sensors).
-3. Optional: MQTT live telemetry (the `getMqttUserInfo` credential blob is still
-   undecrypted in open-cfmoto; polling the REST endpoint may be enough).
+## Entities
+
+Per vehicle you get sensors, binary sensors and a device tracker:
+
+- **Sensors**: odometer, speed, range, battery (12 V) voltage, fuel level,
+  fuel level display, average speed, monthly mileage/time, GSM signal,
+  vehicle/device state, last update
+- **Binary sensors**: T-Box online, vehicle online, T-Box active, ignition (KL15),
+  steering/seat/fuel/battery lock
+- **Device tracker**: GPS position with altitude and last-report time
+
+## Not supported (by design)
+
+- **Remote ignition / keyless start** — the cloud API has no ignition command
+  (only a read-only KL15 state). Ignition control exists only in the BLE
+  protocol, which is phone-to-bike and still unverified. This is tracked
+  separately, not in this integration.
+
+## Development
+
+- `probe.py` — standalone stdlib probe (login → vehicle list → telemetry), used
+  to validate the API against a real VIN. No dependencies.
+- `tests/test_signing.py` — pins the signing algorithm against vectors produced
+  by the reference JS client. Run with `python3 -m unittest discover -s tests`.
+
+```bash
+CFMOTO_EMAIL='you@example.com' CFMOTO_PASSWORD='secret' python3 probe.py --json
+```
