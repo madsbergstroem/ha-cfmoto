@@ -20,6 +20,7 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import CfMotoCoordinator
+from .frontend import async_register_frontend
 
 PLATFORMS: list[Platform] = [
     Platform.SENSOR,
@@ -40,6 +41,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = CfMotoCoordinator(hass, client, poll_interval)
 
     await coordinator.async_config_entry_first_refresh()
+
+    await async_register_frontend(hass)
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

@@ -72,6 +72,30 @@ Per vehicle you get sensors, binary sensors and a device tracker:
   steering/seat/fuel/battery lock
 - **Device tracker**: GPS position with altitude and last-report time
 
+## Dashboard card
+
+The integration ships its own Lovelace card (no HACS plugin needed) at
+`/cfmoto-static/cfmoto-vehicle-card.js`, served from `custom_components/cfmoto/frontend/`:
+
+1. **Settings → Dashboards → ⋮ → Resources → Add resource**
+2. URL `/cfmoto-static/cfmoto-vehicle-card.js?v=0.2.0`, type **JavaScript module**
+3. Add the card:
+
+```yaml
+type: custom:cfmoto-vehicle-card
+entity: sensor.450mt_odometer   # any entity of the vehicle device
+name: 450MT
+image: /cfmoto-static/cfmoto-450mt.png   # optional, bundled by default
+image_navigate: /lovelace/450mt-details  # optional
+```
+
+The card finds the other entities through the device registry, so renaming the
+device or its entities keeps working. Options: `show_metrics`, `show_presence`
+(both default `true`).
+
+Bump the `?v=` query whenever the card file changes — `/cfmoto-static/` is
+cached by the browser.
+
 ## Not supported (by design)
 
 - **Remote ignition / keyless start** — the cloud API has no ignition command

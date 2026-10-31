@@ -3,10 +3,11 @@
   "name": "CFMoto",
   "codeowners": ["@madsbergstroem"],
   "config_flow": true,
+  "dependencies": ["http"],
   "documentation": "https://github.com/madsbergstroem/ha-cfmoto",
   "integration_type": "hub",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/madsbergstroem/ha-cfmoto/issues",
   "loggers": ["custom_components.cfmoto"],
-  "version": "0.1.0"
+  "version": "0.2.0"
 }
