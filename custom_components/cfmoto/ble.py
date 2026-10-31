@@ -308,8 +308,15 @@ class CfMotoBle:
     # --- public API ----------------------------------------------------------
     async def connect(self) -> None:
         """Connect and authenticate. Raises BleError with a readable message."""
-        from homeassistant.components.bluetooth import async_ble_device_from_address
-        from homeassistant.components.bluetooth.wrappers import BleakClientWrapper
+        # HA 2026.10: device lookup lives in bluetooth.api, the old
+        # BleakClientWrapper is gone — connections go through bleak's
+        # BleakClient via bleak_retry_connector.establish_connection.
+        from bleak import BleakClient
+        from bleak_retry_connector import establish_connection
+        from homeassistant.components.bluetooth.api import (
+            async_ble_device_from_address,
+            async_get_scanner,
+        )
 
         ble_device = async_ble_device_from_address(
             self.hass, self.mac.upper(), connectable=True
@@ -320,25 +327,43 @@ class CfMotoBle:
                 self.hass, self.mac.upper(), connectable=False
             )
         if ble_device is None:
+            # HA has never seen the T-Box: run one active scan on the shared
+            # scanner and take the device from the scan result directly.
+            self.log.info("T-Box unbekannt — aktiver BLE-Scan (10 s) über den HA-Adapter")
+            scanner = async_get_scanner(self.hass)
+            try:
+                devices = await asyncio.wait_for(
+                    scanner.discover(timeout=10.0, return_adv=False), timeout=20.0
+                )
+            except Exception as exc:  # noqa: BLE001
+                self.log.debug("aktiver Scan fehlgeschlagen: %s", exc)
+                devices = []
+            for device in devices:
+                self.log.debug(
+                    "Scan-Gerät: %s (%s) rssi=%s",
+                    getattr(device, "name", "?"),
+                    device.address,
+                    getattr(device, "rssi", None),
+                )
+                if device.address.upper() == self.mac.upper():
+                    ble_device = device
+                    self.log.info("T-Box im aktiven Scan gefunden (%s)", device.address)
+                    break
+            self.log.info("aktiver Scan beendet: %d Geräte", len(devices))
+        if ble_device is None:
             raise BleError(
-                f"T-Box {self.mac} wurde noch nie gescannt — Bike in Reichweite "
-                "bringen und kurz warten, bis HA das Advertisement sieht"
+                f"T-Box {self.mac} wurde nicht gefunden — Bike in BLE-Reichweite "
+                "bringen, warten, ggf. einmal die CFMoto-App am Bike öffnen"
             )
 
-        self.client = BleakClientWrapper(ble_device)
         self.log.info("BLE-Verbindung zu %s …", self.mac)
-        await self.client.connect(timeout=15.0)
+        self.client = await establish_connection(
+            BleakClient, ble_device, self.mac.upper()
+        )
         await self.client.start_notify(CHAR_NOTIFY, self._on_notify)
         await asyncio.sleep(0.05)  # BleModel.java: 50 ms
 
-        request_mtu = getattr(self.client, "request_mtu", None)
-        if callable(request_mtu):
-            try:
-                negotiated = await request_mtu(185)
-                self.log.debug("MTU ausgehandelt: %s", negotiated)
-            except Exception as exc:  # noqa: BLE001
-                self.log.debug("MTU fehlgeschlagen (%s) — weiter wie die App", exc)
-
+        # bleak 3.x negotiates MTU itself; the app requests 185, frames are small.
         await asyncio.sleep(2.0)  # BleModel.java: 2000 ms vor Auth
         await self._authenticate()
         self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
