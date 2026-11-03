@@ -18,6 +18,12 @@ const SUFFIX = {
   ignition: '_ignition',
   tbox: '_t_box_online',
   last_update: '_last_update',
+  speed: '_speed',
+  vehicle_online: '_vehicle_online',
+  seat_lock: '_seat_lock',
+  steering_lock: '_steering_lock',
+  fuel_lock: '_fuel_lock',
+  battery_lock: '_battery_lock',
 };
 
 /** Button entities published by the BLE control platform, resolved by suffix. */
@@ -56,6 +62,12 @@ const LABELS = {
     riding_time: 'Fahrzeit',
     gsm: 'Signal',
     last_update: 'Letzte Daten',
+    speed: 'Tempo',
+    vehicle_online: 'Fahrzeug online',
+    seat_lock: 'Sitzbank',
+    steering_lock: 'Lenkschloss',
+    fuel_lock: 'Tankdeckel',
+    battery_lock: 'Batterieschloss',
     vehicle_image: 'Fahrzeugbild',
     unavailable: 'Keine Daten',
     no_entity: 'Keine CFMoto-Entität gefunden',
@@ -110,6 +122,12 @@ const LABELS = {
     riding_time: 'Riding time',
     gsm: 'Signal',
     last_update: 'Last data',
+    speed: 'Speed',
+    vehicle_online: 'Vehicle online',
+    seat_lock: 'Seat',
+    steering_lock: 'Steering lock',
+    fuel_lock: 'Fuel cap',
+    battery_lock: 'Battery lock',
     vehicle_image: 'Vehicle image',
     unavailable: 'No data',
     no_entity: 'No CFMoto entity found',
@@ -150,6 +168,12 @@ const DETAIL_ROWS = Object.freeze([
   ['ignition', 'key-variant', 'ignition', 'onoff'],
   ['tbox', 'access-point', 'tbox', 'online'],
   ['last_update', 'clock-outline', 'last_update', 'ago'],
+  ['speed', 'speedometer', 'speed', 'number'],
+  ['vehicle_online', 'lan-connect', 'vehicle_online', 'online'],
+  ['seat_lock', 'seat', 'seat_lock', 'onoff'],
+  ['steering_lock', 'steering', 'steering_lock', 'onoff'],
+  ['fuel_lock', 'gas-station', 'fuel_lock', 'onoff'],
+  ['battery_lock', 'battery', 'battery_lock', 'onoff'],
 ]);
 
 export function labelsFor(language) {
