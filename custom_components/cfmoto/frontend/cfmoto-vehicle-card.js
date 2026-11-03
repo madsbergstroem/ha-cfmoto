@@ -275,7 +275,7 @@ const CSS = `
 :host{display:block;container-type:inline-size}*{box-sizing:border-box}
 ha-card{position:relative;isolation:isolate;display:block;overflow:hidden;border:1px solid var(--divider-color);border-radius:20px;background:var(--card-background-color);color:var(--primary-text-color)}
 .backdrop{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
-.backdrop .map-bg{position:absolute;inset:0;opacity:.26;filter:saturate(.9)}.backdrop .map-bg hui-map-card{display:block;height:100%}
+.backdrop .map-bg{position:absolute;inset:0;opacity:.4;filter:saturate(.9)}.backdrop .map-bg hui-map-card{display:block;height:100%}
 .backdrop::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,color-mix(in srgb,var(--card-background-color) 30%,transparent) 0%,color-mix(in srgb,var(--card-background-color) 86%,transparent) 60%,var(--card-background-color) 100%)}
 .header,.tabs,.panel,.controls,.error{position:relative;z-index:1}
 button{font:inherit}.header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 16px 0}
