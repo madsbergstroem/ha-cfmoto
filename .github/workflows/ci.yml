@@ -1,0 +1,46 @@
+# Runs the existing test suites on every pull request and on pushes to main.
+# Commands are the ones from the README; nothing here needs a secret.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A newer push to the same branch or PR cancels the run it replaces.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege: the jobs only read the repository.
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          # Same as the current Home Assistant core (requires-python >=3.14.2).
+          python-version: "3.14"
+      # bleak: tests/test_ble_frames.py imports tools/ble_probe.py.
+      - run: python -m pip install bleak cryptography
+      - run: python -m unittest discover -s tests
+
+  card:
+    name: Card tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          # No engines field in the repo: current Node LTS.
+          node-version: 26
+      - run: node --test tests/test_card.mjs tests/test_card_render.mjs
