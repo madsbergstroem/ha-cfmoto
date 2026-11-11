@@ -253,9 +253,12 @@ test('map and details toggles remove their tabs', () => {
   assert.equal(root.querySelectorAll(byClass('row')).length, 0);
 });
 
-test('show_background:false drops the backdrop', () => {
+test('a config that still sets the removed show_background option renders normally', () => {
   const card = mount({ show_background: false });
-  assert.equal(card.shadowRoot.find(byClass('backdrop')), undefined);
+  const root = card.shadowRoot;
+  assert.ok(root.find(byClass('header')));
+  assert.equal(root.querySelectorAll(byClass('tab')).length, 3);
+  assert.equal(root.querySelectorAll(byClass('panel')).length, 3);
 });
 
 test('english locale renders english labels', () => {

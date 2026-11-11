@@ -86,7 +86,6 @@ export class CfMotoVehicleCardEditor extends (globalThis.HTMLElement ?? class {}
       ['tabs', labels.editor_tabs],
       ['map', labels.editor_map],
       ['details', labels.editor_details],
-      ['show_background', labels.editor_background],
     ];
     for (const [key, text] of switches) {
       const row = document.createElement('label');
