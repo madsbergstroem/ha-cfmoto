@@ -15,12 +15,12 @@ ha-cfmoto is a Home Assistant custom integration for CFMoto motorcycles with a T
 ## Tests
 
 ```bash
-python3 -m venv .venv && .venv/bin/pip install cryptography
+python3 -m venv .venv && .venv/bin/pip install bleak cryptography
 .venv/bin/python -m unittest discover -s tests
 node --test tests/test_card.mjs tests/test_card_render.mjs
 ```
 
-The card tests run against a DOM shim, so no browser is needed. The browser caches `/cfmoto-static/`, so when the card file changes, bump the `?v=` query of the card resource (README, "Dashboard card").
+`bleak` is needed because `tests/test_ble_frames.py` imports `tools/ble_probe.py`. The card tests run against a DOM shim, so no browser is needed. The browser caches `/cfmoto-static/`, so when the card file changes, bump the `?v=` query of the card resource (README, "Dashboard card").
 
 ## Pull requests
 
