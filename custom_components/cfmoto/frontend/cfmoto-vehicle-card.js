@@ -95,7 +95,6 @@ const LABELS = {
     editor_tabs: 'Tabs anzeigen',
     editor_map: 'Karten-Tab',
     editor_details: 'Details-Tab',
-    editor_background: 'Hintergrundbild',
     editor_note: 'Tabs aus = nur die Übersicht ohne Tab-Leiste.',
   },
   en: {
@@ -155,7 +154,6 @@ const LABELS = {
     editor_tabs: 'Show tabs',
     editor_map: 'Map tab',
     editor_details: 'Details tab',
-    editor_background: 'Background image',
     editor_note: 'Tabs off = overview only, no tab bar.',
   },
 };
