@@ -233,8 +233,13 @@ export function pick(ids, suffix) {
 
 export function resolveEntities(hass, entityId) {
   const ids = deviceEntityIds(hass, entityId);
+  const suffixes = Object.values(SUFFIX);
   const result = {};
-  for (const [key, suffix] of Object.entries(SUFFIX)) result[key] = pick(ids, suffix);
+  for (const [key, suffix] of Object.entries(SUFFIX)) {
+    // `_speed` must not resolve to `*_average_speed`: skip ids that end in a longer known suffix.
+    const longer = suffixes.filter((other) => other.length > suffix.length && other.endsWith(suffix));
+    result[key] = pick(ids.filter((id) => !longer.some((other) => id.endsWith(other))), suffix);
+  }
   result.location = ids.find((id) => id.startsWith('device_tracker.'));
   for (const key of CONTROL_KEYS) result[key] = pick(ids.filter((id) => id.startsWith('button.')), `_${key}`);
   return result;

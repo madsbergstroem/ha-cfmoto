@@ -141,8 +141,12 @@ test('render builds header, tabs, overview, map and details panels', () => {
   assert.ok(root.find(byClass('header')));
   assert.equal(root.find(byClass('tab')).textContent, 'Übersicht');
   assert.equal(root.querySelectorAll(byClass('tab')).length, 3);
-  assert.equal(root.querySelectorAll(byClass('panel')).length, 3);
-  assert.ok(root.find(byClass('backdrop')));
+  const panels = root.querySelectorAll(byClass('panel'));
+  assert.equal(panels.length, 3);
+  // The backdrop was removed from the card; the map lives only in its own tab.
+  assert.equal(root.find(byClass('backdrop')), undefined);
+  assert.ok(panels[1].find(byClass('map')));
+  assert.equal(root.querySelectorAll(byClass('map')).length, 1);
   assert.equal(root.querySelectorAll(byClass('metric')).length, 4);
 });
 
@@ -157,17 +161,46 @@ test('overview shows range, fuel chip, status and metrics', () => {
   assert.deepEqual(metrics, ['5885.8 kmKilometer', '382.7 kmDiesen Monat', '12.6 VBordspannung', '27.9 km/hØ Tempo']);
 });
 
-test('details rows format duration, signal, ignition, t-box and age', () => {
-  const card = mount();
+const DETAIL_STATES = {
+  'sensor.450mt_speed': { state: '42.4', attributes: { unit_of_measurement: 'km/h' } },
+  'binary_sensor.450mt_vehicle_online': { state: 'off', attributes: {} },
+  'binary_sensor.450mt_seat_lock': { state: 'on', attributes: {} },
+  'binary_sensor.450mt_steering_lock': { state: 'off', attributes: {} },
+  'binary_sensor.450mt_fuel_lock': { state: 'off', attributes: {} },
+  'binary_sensor.450mt_battery_lock': { state: 'on', attributes: {} },
+};
+
+test('details rows format duration, signal, ignition, t-box, age, speed, online and locks', () => {
+  const card = new CfMotoVehicleCard();
+  card.setConfig({ type: 'custom:cfmoto-vehicle-card', entity: 'sensor.450mt_odometer' });
+  card.hass = makeHass({ ...STATES, ...DETAIL_STATES });
   card.selectTab('details');
-  const rows = card.shadowRoot.querySelectorAll(byClass('row')).map((node) => node.textContent);
-  assert.equal(rows.length, 6);
+  const nodes = card.shadowRoot.querySelectorAll(byClass('row'));
+  const rows = nodes.map((node) => node.textContent);
+  assert.equal(rows.length, 12);
   assert.match(rows[0], /^TankSufficient$/);
   assert.match(rows[1], /^Fahrzeit13 Std 44 min$/);
   assert.match(rows[2], /^Signal30$/);
   assert.match(rows[3], /^ZündungAus$/);
   assert.match(rows[4], /^T-BoxOnline$/);
   assert.match(rows[5], /^Letzte Datenvor 5 Min$/);
+  assert.match(rows[6], /^Tempo42$/);
+  assert.match(rows[7], /^Fahrzeug onlineOffline$/);
+  assert.match(rows[8], /^SitzbankAn$/);
+  assert.match(rows[9], /^LenkschlossAus$/);
+  assert.match(rows[10], /^TankdeckelAus$/);
+  assert.match(rows[11], /^BatterieschlossAn$/);
+  assert.deepEqual(nodes.map((node) => node.disabled), Array(12).fill(false));
+});
+
+test('speed row does not fall back to the average speed sensor', () => {
+  const card = mount();
+  assert.equal(card.ids.speed, undefined);
+  assert.equal(card.ids.avg_speed, 'sensor.450mt_average_speed');
+  card.selectTab('details');
+  const speed = card.shadowRoot.querySelectorAll(byClass('row')).find((row) => row.textContent.startsWith('Tempo'));
+  assert.equal(speed.textContent, 'Tempo—');
+  assert.equal(speed.disabled, true);
 });
 
 test('tab switching hides the other panels', () => {
