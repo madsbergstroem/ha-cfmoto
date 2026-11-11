@@ -78,7 +78,7 @@ The integration ships its own Lovelace card (no HACS plugin needed) at
 `/cfmoto-static/cfmoto-vehicle-card.js`, served from `custom_components/cfmoto/frontend/`:
 
 1. **Settings → Dashboards → ⋮ → Resources → Add resource**
-2. URL `/cfmoto-static/cfmoto-vehicle-card.js?v=0.3.0`, type **JavaScript module**
+2. URL `/cfmoto-static/cfmoto-vehicle-card.js?v=0.3.1`, type **JavaScript module**
 3. Add the card:
 
 ```yaml
@@ -100,7 +100,7 @@ omitted.
 |---|---|---|
 | `tabs` | `true` | Overview/Map/Details tab bar; `false` renders the overview only |
 | `map` | `true` | Map tab with the vehicle tracker (`hui-map-card`) |
-| `details` | `true` | Details tab: fuel display, riding time, signal, ignition, T-Box, last data |
+| `details` | `true` | Details tab: fuel display, riding time, signal, ignition, T-Box, last data, speed, vehicle online, seat, steering, fuel cap and battery locks |
 | `show_background` | `true` | Blurred vehicle image as ambient backdrop |
 | `show_metrics` | `true` | Odometer, month mileage, battery voltage, average speed |
 | `show_presence` | `true` | Location, T-Box state and age of the last data |
